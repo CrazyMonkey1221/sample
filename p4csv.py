@@ -1,51 +1,39 @@
 import pandas as pd
-from pandas import DataFrame
-from math import log
-from collections import Counter
 from pprint import pprint
+from sklearn.feature_selection import mutual_info_classif
+from collections import Counter
 
-df_tennis = pd.read_csv('/home/sahyadri/Documents/tennis.csv')
-df_tennis.keys()[0]
-
-def entropy(probs):
-    return sum([-prob * log(prob,2) for prob in probs])
-
-def entropy_of_lists(a_list):
-    cnt = Counter(x for x in a_list)
-    num_instances = len(a_list) * 1.0
-    probs = [x/num_instances for x in cnt.values()]
-    return entropy(probs)
-
-def information_gain(df,split_attribute_name,target_attribute_name):
-    df_split = df.groupby(split_attribute_name)
-    nobs = len(df.index) * 1.0
-    df_agg_ent = df_split.agg({target_attribute_name:[entropy_of_lists,lambda x: len(x)]})
-    [target_attribute_name]
-    df_agg_ent.columns = ['Entropy','PropObservations']
-    new_entropy = sum(df_agg_ent['Entropy'] * df_agg_ent['PropObservations'])
-    old_entropy = entropy_of_lists(df[target_attribute_name])
-    return old_entropy - new_entropy
-
-def id3(df,target_attribute_name,attribute_names,default_class = None):
-    cnt = Counter(x for x in df[target_attribute_name])
+def id3(df,attribute_names,target_attribute,default_class=None):
+    cnt = Counter(x for x in df[target_attribute])
     if len(cnt) == 1:
         return next(iter(cnt))
     elif df.empty or (not attribute_names):
         return default_class
     else:
-        default_class = max(cnt.keys())
-        gainz = [information_gain(df,attr,target_attribute_name) for attr in attribute_names]
-        index_of_max = gainz.index(max(gainz))
+        gainz = mutual_info_classif(df[attribute_names],df[target_attribute],discrete_features=True)
+        index_of_max = gainz.tolist().index(max(gainz))
         best_attr = attribute_names[index_of_max]
         tree = {best_attr:{}}
-        remaining_attribute_names = [i for i in attribute_names if i!= best_attr]
-        for attr_val,data_subset in df.groupby(best_attr):
-            subtree = id3(data_subset,target_attribute_name,remaining_attribute_names,default_class)
-            tree[best_attr][attr_val] = subtree
+        remaining_attribute_names = [i for i in attribute_names if i!=best_attr]
+
+        for att_val,data_subset in df.groupby(best_attr):
+            subtree = id3(data_subset,remaining_attribute_names,target_attribute,default_class=None)
+            tree[best_attr][att_val] = subtree
+    
     return tree
 
-attribute_names = list(df_tennis.columns)
+df = pd.read_csv('C:/Users/sughosh_sv/Downloads/tennis.csv')
+
+attribute_names = df.columns.tolist()
 attribute_names.remove('PlayTennis')
-tree = id3(df_tennis,'PlayTennis',attribute_names)
-print("\n\nThe Resultant Decision Tree is :")
-pprint(tree)  
+print(df)
+
+for col in df.select_dtypes("object"):
+    df[col],_ = df[col].factorize()
+
+print(df)
+tree = id3(df,attribute_names,'PlayTennis')
+pprint(tree)
+
+
+
